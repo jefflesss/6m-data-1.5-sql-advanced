@@ -70,6 +70,12 @@ DESCRIBE address;
 
 👋 **Exercise 1:** Describe the other 3 tables. Study their column names and data types.
 
+```
+e.g. in car: car_manufacture_year is BIGINT could be DATETIME instead
+e.g. in claim: claim_date is VARCHAR could be DATETIME instead.
+e.g. in client: phone is VARCHAR (should be int or bigint), gender is VARCHAR (choice possible?), birth_year is BIGINT could be DATETIME instead 
+```
+
 #### Summarize Tables
 
 ```sql
@@ -258,6 +264,10 @@ SELECT * FROM contractors;
 
 > **Question:** "If I SUMMARIZE the claim table and see a max(claim_amt) that is 10x higher than the average, what does that tell you about our insurance risk?"
 
+```
+This would imply potentially high insurance risk, because there is a possibility for high payouts involved. However based on the data, 75% of the claims are below 3, and standard deviation is very high (94), hence the magnitude of the risk is high, but likelihood is low.
+```
+
 👋👋👋 **Group Exercise 3:**
 
 Create a master report of every claim. Include the client's name, their car type, and the city they live in.
@@ -277,6 +287,24 @@ INNER JOIN client cli ON cl.client_id = cli.id;
 ```
 
 Once that looks right, add one more `INNER JOIN` to bring in the city.
+
+```sql
+--Learning point, no need to put the foreign keys inside
+
+SELECT 
+    claim.id, 
+    claim.claim_date, 
+    claim.travel_time, 
+    claim.claim_amt, 
+    car.car_type,
+    CONCAT(client.first_name, ' ', client.last_name) AS client_full_name,
+    client.address_id,
+    address.city
+FROM claim
+LEFT JOIN car ON claim.car_id = car.id
+LEFT JOIN client ON claim.client_id = client.id
+LEFT JOIN address ON client.address_id = address.id
+```
 
 <details>
  <summary>Solution for Exercise 3</summary>
@@ -302,7 +330,15 @@ INNER JOIN address a ON cli.address_id = a.id;
 ### 💬 Reflection
 
 - When joining tables, which table should you choose as the "Left" table? What is a useful rule of thumb?
+```
+The table in the FROM part of the DML query. The table you want to preserve all rcords from
+```
+
 - How would a "Full Outer Join" help us find cars that have never been claimed AND claims that (erroneously) don't have a car attached?
+
+```
+It will preserve all the rows
+```
 
 ---
 
@@ -365,6 +401,14 @@ FROM claim;
 > Return a table containing `id, car_id, claim_amt, running_total` from claim, where `running_total` is the running sum of the `claim_amt` column for each `car_id`.
 
 👋 **Exercise 4:** Calculate a running total of insurance payouts over time (ordered by claim_date).
+
+```sql
+SELECT
+  id, car_id, claim_amt,
+  SUM(claim_amt) OVER (PARTITION BY claim_date ORDER BY claim_date) AS running_total
+FROM claim;
+
+```
 
 <details>
  <summary>Solution for Exercise 4</summary>
@@ -437,7 +481,13 @@ ORDER BY
 ### 💬 Reflection
 
 - What is the key difference between `GROUP BY` and window functions?
+```
+GROUP BY collapses the rows, window functions preserve the rows. E.g. qualify will look at the filter applied after the window function
+```
 - When would you use `RANK()` vs. `ROW_NUMBER()`?
+```
+RANK() is when I want to partition items into groups, ROW_NUMBER() would be fore the entire dataset
+```
 
 ---
 
@@ -548,6 +598,22 @@ WHERE avg_claim_amt > (SELECT overall_avg FROM overall_avg);
 
 👋👋👋 **Group Exercise 5:** Create a CTE that finds the total claim amount for each car. Then use this CTE to find the cars with a total claim amount greater than the average.
 
+```sql
+WITH total_claims AS (
+    SELECT car_id, SUM(claim_amt) AS total_claim_amt
+    FROM claim
+    GROUP BY car_id
+    ),
+avg_claims AS (
+    SELECT AVG(claim_amt) AS overall_avg
+    FROM claim
+)
+SELECT car_id, total_claim_amt
+FROM total_claims
+WHERE total_claim_amt > (SELECT overall_avg FROM avg_claims)
+ORDER BY total_claim_amt ASC;
+```
+
 <details>
  <summary>Solution for Exercise 5</summary>
 
@@ -576,6 +642,28 @@ ORDER BY total_claim_amt DESC;
 > 2. Then, wrap the entire query in a CTE and add `WHERE rank <= 3` in the outer SELECT.
 >
 > Breaking it into stages means you catch errors early, when you know exactly what changed.
+
+```sql
+WITH table_join AS (
+    SELECT 
+        cl.id AS claim_id, 
+        cl.claim_amt, 
+        car.car_type,
+        CONCAT(client.first_name, ' ', client.last_name) AS client_full_name,
+        add.city,
+        RANK() OVER (
+            PARTITION BY car_type
+            ORDER BY claim_amt DESC
+            ) AS claim_rank
+    FROM claim cl
+    LEFT JOIN car ON cl.car_id = car.id
+    LEFT JOIN client ON cl.client_id = client.id
+    LEFT JOIN address add ON client.address_id = add.id
+)
+SELECT *
+FROM table_join
+WHERE claim_rank <= 3;
+```
 
 <details>
  <summary>Solution for Exercise 6</summary>
@@ -612,7 +700,15 @@ ORDER BY car_type, rank;
 ### 💬 Reflection
 
 - When would you use a CTE instead of a subquery?
+```
+When you need to use the expression in the CTE multiple times throughout the SQL code
+```
+
 - How would a CTE help you identify "problem clients" (those with multiple high-value claims in a short time period)?
+
+```
+You can use a CTE to calculate a clients' total claim amount and their claim period / duration, then to use a WHERE function to filter out the highest spending clients over their duration
+```
 
 ---
 
