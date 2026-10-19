@@ -96,8 +96,20 @@ You should see 5 rows of client data. Post in **#questions** on Discord if you h
 Try to answer these before class, then check below.
 
 1. You have a `Customers` table and an `Orders` table. Some customers have never placed an order. Which join type keeps *all* customers in the result?
+
+```
+LEFT JOIN from customers (left table) to orders (right table)
+```
 2. What is the key difference between `GROUP BY` and a window function with `PARTITION BY`?
+
+```
+GROUP BY collapses rows into groups. Partition by preserves the rows still
+```
+
 3. In a CTE, once you define `WITH my_cte AS (...)`, how do you use it?
+```
+Using a JOIN... ON command 
+```
 
 <details>
 <summary>Suggested answers</summary>
