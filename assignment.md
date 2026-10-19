@@ -15,7 +15,15 @@ Using the `claim` and `car` tables, write a SQL query to return a table containi
 Answer:
 
 ```sql
-
+SELECT
+    cl.id,
+    cl.claim_date,
+    cl.travel_time,
+    cl.claim_amt,
+    ca.car_type,
+    ca.car_use
+FROM claim cl
+LEFT JOIN car ca ON cl.car_id = ca.id;
 ```
 
 ### Question 2
@@ -25,7 +33,13 @@ Write a SQL query to compute the running total of the `travel_time` column for e
 Answer:
 
 ```sql
-
+SELECT
+    id,
+    car_id,
+    travel_time,
+    SUM(travel_time) OVER (PARTITION BY car_id ORDER BY id) AS running_total
+FROM claim
+ORDER BY car_id ASC;
 ```
 
 ### Question 3
@@ -35,7 +49,22 @@ Using a Common Table Expression (CTE), write a SQL query to return a table conta
 Answer:
 
 ```sql
-
+WITH overall_avg AS (
+    SELECT
+    car_use,
+    AVG(resale_value) AS car_use_avg
+    FROM car
+    GROUP BY car_use
+    )
+SELECT
+    ca.id,
+    ca.resale_value,
+    ca.car_use,
+    oa.car_use_avg
+FROM car ca
+LEFT JOIN overall_avg oa ON ca.car_use = oa.car_use
+WHERE ca.resale_value < oa.car_use_avg
+ORDER BY ca.resale_value;
 ```
 
 # **Level Up: The Insurance Auditor Project**
@@ -64,6 +93,14 @@ Write those queries here:
 
 ```sql
 -- Your exploration queries
+SELECT DISTINCT car_type FROM car
+
+SELECT DISTINCT state FROM address
+
+SELECT COUNT(*)
+FROM client
+LEFT JOIN address ON client.address_id = address.id IS NULL
+
 ```
 
 ---
@@ -76,6 +113,13 @@ Write a query (no CTE yet) that joins `claim` and `car`, and adds a column `avg_
 
 ```sql
 -- Step 2: Your query here
+SELECT 
+    cl.id,
+    cl.claim_amt,
+    car.car_type,
+    AVG(cl.claim_amt) OVER (PARTITION BY car.car_type ORDER BY car_type) AS avg_claim_car_type
+FROM claim cl
+LEFT JOIN car ON cl.car_id = car.id
 ```
 
 <details>
@@ -106,16 +150,26 @@ The catch: we can't do this in the same step as Step 2, because Step 2 uses a wi
 Wrap your Step 2 query in a CTE called `market_comparison`, then write a second CTE called `client_totals` that groups by `client_id` and sums `claim_amt`:
 
 ```sql
--- Step 3: Your query here
 WITH market_comparison AS (
-    -- paste Step 2 query here
-),
+    SELECT 
+        cl.client_id,
+        cl.claim_amt,
+        car.car_type,
+        AVG(cl.claim_amt) OVER (PARTITION BY car.car_type ORDER BY car_type) AS avg_claim_car_type
+    FROM claim cl
+    LEFT JOIN car ON cl.car_id = car.id),
 client_totals AS (
-    SELECT client_id, SUM(claim_amt) AS total_claimed
+    SELECT 
+        client_id, 
+        SUM(claim_amt) AS total_claimed,
+        car_type
     FROM market_comparison
-    GROUP BY client_id
+    GROUP BY client_id, car_type
 )
-SELECT * FROM client_totals LIMIT 10;
+SELECT * 
+FROM client_totals
+ORDER BY client_id
+LIMIT 10;
 ```
 
 <details>
@@ -151,9 +205,25 @@ SELECT * FROM client_totals LIMIT 10;
 Add a third CTE called `client_details` that joins `client_totals` to `client` and `address`:
 
 ```sql
--- Step 4: Add this CTE after client_totals
+WITH market_comparison AS (
+    SELECT 
+        cl.client_id,
+        cl.claim_amt,
+        car.car_type,
+        AVG(cl.claim_amt) OVER (PARTITION BY car.car_type ORDER BY car_type) AS avg_claim_car_type
+    FROM claim cl
+    LEFT JOIN car ON cl.car_id = car.id),
+client_totals AS (
+    SELECT 
+        client_id, 
+        SUM(claim_amt) AS total_claimed,
+        car_type
+    FROM market_comparison
+    GROUP BY client_id, car_type
+),
 client_details AS (
     SELECT
+        ct.client_id,
         c.first_name || ' ' || c.last_name AS client_name,
         a.state,
         ct.car_type,
@@ -162,7 +232,7 @@ client_details AS (
     INNER JOIN client c ON ct.client_id = c.id
     INNER JOIN address a ON c.address_id = a.id
 )
-SELECT * FROM client_details LIMIT 10;
+SELECT * FROM client_details ORDER BY client_id LIMIT 10;
 ```
 
 **Check:** You should now see client names and states alongside their totals.
@@ -178,13 +248,42 @@ SELECT * FROM client_details LIMIT 10;
 Add a fourth CTE called `ranked_clients` and write the final SELECT:
 
 ```sql
--- Step 5: Complete query
+WITH market_comparison AS (
+    SELECT 
+        cl.client_id,
+        cl.claim_amt,
+        car.car_type,
+        AVG(cl.claim_amt) OVER (PARTITION BY car.car_type ORDER BY car_type) AS avg_claim_car_type
+    FROM claim cl
+    LEFT JOIN car ON cl.car_id = car.id
+    ),
+client_totals AS (
+    SELECT 
+        client_id, 
+        SUM(claim_amt) AS total_claimed,
+        car_type
+    FROM market_comparison
+    GROUP BY client_id, car_type
+    ),
+client_details AS (
+    SELECT
+        ct.client_id,
+        c.first_name || ' ' || c.last_name AS client_name,
+        a.state,
+        ct.car_type,
+        ct.total_claimed
+    FROM client_totals ct
+    INNER JOIN client c ON ct.client_id = c.id
+    INNER JOIN address a ON c.address_id = a.id
+    ),
 ranked_clients AS (
-    SELECT *,
+    SELECT 
+        *,
         RANK() OVER (PARTITION BY state ORDER BY total_claimed DESC) AS state_rank
     FROM client_details
 )
 SELECT
+    client_id AS "Client ID",
     client_name AS "Client Name",
     state       AS "State",
     car_type    AS "Car Type",
