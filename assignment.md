@@ -117,9 +117,10 @@ SELECT
     cl.id,
     cl.claim_amt,
     car.car_type,
-    AVG(cl.claim_amt) OVER (PARTITION BY car.car_type ORDER BY car_type) AS avg_claim_car_type
+    AVG(cl.claim_amt) OVER (PARTITION BY car.car_type) AS avg_claim_car_type
 FROM claim cl
 LEFT JOIN car ON cl.car_id = car.id
+ORDER BY car.car_type
 ```
 
 <details>
@@ -160,9 +161,9 @@ WITH market_comparison AS (
     LEFT JOIN car ON cl.car_id = car.id),
 client_totals AS (
     SELECT 
-        client_id, 
-        SUM(claim_amt) AS total_claimed,
+        client_id,
         car_type
+        SUM(claim_amt) AS total_claimed,
     FROM market_comparison
     GROUP BY client_id, car_type
 )
